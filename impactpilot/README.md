@@ -122,3 +122,27 @@ to 10 points, recurring impact snapshots up to 8, and associated historical
 test failures up to 12 (total capped at 30). Every factor includes its sample
 size. A historical heuristic snapshot stays heuristic—it never confirms a
 current relationship or predicts a failure.
+
+## Phase 6 project intelligence
+
+`impactpilot project` consumes the actual `entire-graph snapshot --format ndjson`
+stream. It does not parse source code or maintain another dependency graph. The
+initial map groups files by their first repository directory, bounds visible
+modules (50 by default), aggregates only inter-module relations, and retains a
+representative relation's type, confidence, resolution, reason, and source
+evidence. Click a module or relationship in the generated HTML to inspect that
+evidence, trust classification, symbol locations, and a compact Graph-derived
+AI context selection.
+
+```text
+python -m impactpilot project --repo . --graph-executable entire-graph --output project-map.html
+```
+
+The renderer is plain self-contained HTML/SVG/JavaScript: the repository had no
+web app or frontend dependencies, so this is the smallest portable interactive
+surface for the hackathon. It supports bounded initial rendering, click-to-drill
+down, relationship evidence, symbol/file search, reset, and a focused context
+view. It deliberately does not claim runtime completeness, token savings, or
+full-repository rendering scalability. Partial Graph results are surfaced as a
+coverage warning and classify relationship evidence as `incomplete`; heuristic
+provider relation families remain visibly heuristic.

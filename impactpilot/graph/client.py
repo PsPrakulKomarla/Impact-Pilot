@@ -19,11 +19,41 @@ class GraphClient:
     timeout_seconds: float = 120.0
 
     def run_json(self, command: str, repository: Path, *args: str) -> dict[str, Any]:
+        output = self._run(command, repository, *args)
+        try:
+            data = json.loads(output)
+        except json.JSONDecodeError as exc:
+            raise GraphClientError(f"Entire Graph {command} returned invalid JSON") from exc
+        if not isinstance(data, dict):
+            raise GraphClientError(f"Entire Graph {command} returned a JSON value, not an object")
+        return data
+
+    def run_ndjson(self, command: str, repository: Path, *args: str) -> tuple[dict[str, Any], ...]:
+        """Read an Entire Graph NDJSON stream without inventing a second graph format."""
+        output = self._run(command, repository, *args)
+        records: list[dict[str, Any]] = []
+        for number, line in enumerate(output.splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise GraphClientError(f"Entire Graph {command} returned invalid NDJSON at line {number}") from exc
+            if not isinstance(record, dict):
+                raise GraphClientError(f"Entire Graph {command} returned a non-object NDJSON record at line {number}")
+            records.append(record)
+        if not records:
+            raise GraphClientError(f"Entire Graph {command} returned no NDJSON records")
+        return tuple(records)
+
+    def _run(self, command: str, repository: Path, *args: str) -> str:
         try:
             completed = subprocess.run(
                 [self.executable, command, "--repo", str(repository), *args],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=self.timeout_seconds,
                 check=False,
             )
@@ -33,10 +63,4 @@ class GraphClient:
             raise GraphClientError(f"Entire Graph {command} timed out after {self.timeout_seconds:g}s") from exc
         if completed.returncode:
             raise GraphClientError(completed.stderr.strip() or f"Entire Graph {command} failed with exit code {completed.returncode}")
-        try:
-            data = json.loads(completed.stdout)
-        except json.JSONDecodeError as exc:
-            raise GraphClientError(f"Entire Graph {command} returned invalid JSON") from exc
-        if not isinstance(data, dict):
-            raise GraphClientError(f"Entire Graph {command} returned a JSON value, not an object")
-        return data
+        return completed.stdout
