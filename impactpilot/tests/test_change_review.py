@@ -8,6 +8,7 @@ from pathlib import Path
 from impactpilot.change.review import ReviewService
 from impactpilot.__main__ import _render
 from impactpilot.graph.client import GraphClientError
+from impactpilot.history.models import ChangeEvent, HistoricalEvidence, TestEvent
 
 
 def diff(*changes):
@@ -106,6 +107,24 @@ class ChangeReviewTests(unittest.TestCase):
         result = ReviewService(FakeGraph(GraphClientError("Graph CLI missing"))).review(Path("."), base="base", head="head")
         self.assertEqual(result.status, "failed")
         self.assertIsNone(result.risk)
+
+    def test_historical_store_failure_keeps_graph_review_running(self):
+        class FailingHistory:
+            def lookup(self, *args): raise RuntimeError("Databricks unavailable")
+        result = ReviewService(FakeGraph(diff(change())), historical_store=FailingHistory()).review(Path("."), base="base", head="head")
+        self.assertEqual(result.status, "complete")
+        self.assertEqual(result.risk.historical_status, "unavailable")
+        self.assertIn("Historical intelligence unavailable", result.historical.limitations[0])
+
+    def test_historical_failed_test_changes_recommendation_and_risk(self):
+        class History:
+            def lookup(self, *args):
+                event = ChangeEvent("c", ".", "commit", None, "now", ("service.py",), ("authenticate",), ("body_changed",), "SYNTHETIC", "fixture")
+                failed = TestEvent("t", ".", "commit", "now", "python -m unittest auth", "authentication", "FAIL", 1, "failure", "SYNTHETIC", "fixture")
+                return HistoricalEvidence(True, "fixture", "SYNTHETIC", 2, (event, event), (failed,), ())
+        result = ReviewService(FakeGraph(diff(change())), historical_store=History()).review(Path("."), base="base", head="head")
+        self.assertGreater(result.risk.historical_component, 0)
+        self.assertIn("python -m unittest auth", result.verification.test_checks)
 
     def test_human_output_is_windows_console_safe(self):
         result = self.review(diff())

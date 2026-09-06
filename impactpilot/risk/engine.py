@@ -8,6 +8,7 @@ from typing import Iterable
 from impactpilot.change.diff import ChangedSymbol
 from impactpilot.change.impact import ImpactFinding
 from impactpilot.graph.evidence import EvidenceQuality
+from impactpilot.history.models import HistoricalEvidence
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,7 @@ class RiskFactor:
     contribution: int
     reason: str
     source: str
+    sample_size: int | None = None
 
 
 @dataclass(frozen=True)
@@ -34,7 +36,7 @@ class RiskResult:
         return {**asdict(self), "factors": [asdict(item) for item in self.factors]}
 
 
-def score_review(changes: Iterable[ChangedSymbol], findings: Iterable[ImpactFinding]) -> RiskResult:
+def score_review(changes: Iterable[ChangedSymbol], findings: Iterable[ImpactFinding], historical: HistoricalEvidence | None = None) -> RiskResult:
     changes, findings = tuple(changes), tuple(findings)
     factors: list[RiskFactor] = []
     structural = 0
@@ -61,11 +63,29 @@ def score_review(changes: Iterable[ChangedSymbol], findings: Iterable[ImpactFind
     verification = min(10, len(uncertain) * 5)
     if uncertain:
         factors.append(_factor("verification required", len(uncertain), verification, "Uncertain graph evidence must not be treated as absence of impact.", "trust layer"))
-    score = min(100, structural + verification)  # Historical (30%) is explicitly unavailable in Phase 4.
+    historical_score = _historical_score(historical, factors)
+    score = min(100, structural + historical_score + verification)
     level = "LOW" if score < 30 else "MEDIUM" if score < 60 else "HIGH" if score < 80 else "CRITICAL"
-    warnings = ("Historical evidence is unavailable in Phase 4; its 30-point component is not scored.",) if changes else ()
-    return RiskResult(score, level, structural, 0, verification, "unavailable", tuple(factors), warnings)
+    historical_status = "available" if historical and historical.available else "unavailable"
+    warnings = tuple(historical.limitations) if historical else ("Historical evidence is unavailable; its 30-point component is not scored.",)
+    return RiskResult(score, level, structural, historical_score, verification, historical_status, tuple(factors), warnings)
 
 
-def _factor(signal: str, value: int | str, contribution: int, reason: str, source: str) -> RiskFactor:
-    return RiskFactor(signal, value, contribution, reason, source)
+def _historical_score(evidence: HistoricalEvidence | None, factors: list[RiskFactor]) -> int:
+    if not evidence or not evidence.available or evidence.sample_size == 0:
+        return 0
+    # Proposed ImpactPilot policy: one event is visible but cannot establish a pattern.
+    if evidence.sample_size == 1:
+        factors.append(_factor("historical sample", 1, 0, "One related event is limited evidence, not a pattern.", evidence.source, 1))
+        return 0
+    recurrence = min(10, (evidence.sample_size - 1) * 3)
+    impacts = min(8, len(evidence.impact_patterns) * 2)
+    failures = min(12, len(evidence.failed_tests) * 6)
+    if recurrence: factors.append(_factor("historical change recurrence", evidence.sample_size, recurrence, "Related changes were observed in the bounded historical window.", evidence.source, evidence.sample_size))
+    if impacts: factors.append(_factor("historical impact recurrence", len(evidence.impact_patterns), impacts, "Related Graph impact snapshots were observed; their trust state remains attached.", evidence.source, evidence.sample_size))
+    if failures: factors.append(_factor("historical test failures", len(evidence.failed_tests), failures, "Historical records associate related changes with test failures; this does not predict this change.", evidence.source, evidence.sample_size))
+    return min(30, recurrence + impacts + failures)
+
+
+def _factor(signal: str, value: int | str, contribution: int, reason: str, source: str, sample_size: int | None = None) -> RiskFactor:
+    return RiskFactor(signal, value, contribution, reason, source, sample_size)

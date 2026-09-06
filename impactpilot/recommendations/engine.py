@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import Iterable
 
 from impactpilot.change.impact import ImpactFinding
+from impactpilot.history.models import HistoricalEvidence
 
 
 @dataclass(frozen=True)
@@ -28,7 +29,7 @@ class VerificationPlan:
         return asdict(self)
 
 
-def recommend(findings: Iterable[ImpactFinding]) -> tuple[tuple[Recommendation, ...], VerificationPlan]:
+def recommend(findings: Iterable[ImpactFinding], historical: HistoricalEvidence | None = None) -> tuple[tuple[Recommendation, ...], VerificationPlan]:
     findings = tuple(findings)
     recommendations: list[Recommendation] = []
     source_checks: list[str] = []
@@ -45,12 +46,15 @@ def recommend(findings: Iterable[ImpactFinding]) -> tuple[tuple[Recommendation, 
             recommendations.append(Recommendation(2, f"Inspect {finding.impacted_symbol}{location_text}.", finding.trust.verification_reason or "Graph evidence needs verification.", finding.evidence.provenance.command))
             source_checks.append(f"Inspect {finding.impacted_symbol}{location_text} ({qualifier} {finding.category}).")
             reasons.append(finding.trust.verification_reason or "Graph evidence is uncertain.")
+    if historical and historical.available:
+        for event in historical.failed_tests:
+            recommendations.append(Recommendation(2, f"Run historically associated test: {event.test_command}.", f"A related historical change recorded a FAIL for {event.test_scope}; this supports verification, not a failure prediction.", historical.source))
     recommendations.sort(key=lambda item: (item.priority, item.action))
     unique = tuple(dict.fromkeys(recommendations))
     plan = VerificationPlan(
         required=bool(reasons),
         source_checks=tuple(dict.fromkeys(source_checks)),
-        test_checks=(),  # No test name is guessed without Graph/source evidence.
+        test_checks=tuple(event.test_command for event in historical.failed_tests) if historical else (),
         graph_checks=tuple(f"Re-check impact of {item.changed_symbol}." for item in findings if item.trust.verification_required),
         reasons=tuple(dict.fromkeys(reasons)),
     )

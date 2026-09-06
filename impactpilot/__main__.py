@@ -18,9 +18,14 @@ def main() -> int:
     review.add_argument("--base", required=True, help="Committed baseline ref; worktree comparisons are not implied.")
     review.add_argument("--head", required=True, help="Committed target ref.")
     review.add_argument("--graph-executable", default="entire-graph")
+    review.add_argument("--databricks", action="store_true", help="Use configured Databricks SQL historical intelligence.")
     review.add_argument("--json", action="store_true")
     args = parser.parse_args()
-    result = ReviewService(GraphClient(args.graph_executable)).review(args.repo, base=args.base, head=args.head)
+    historical_store = None
+    if args.databricks:
+        from impactpilot.databricks import DatabricksStore
+        historical_store = DatabricksStore()
+    result = ReviewService(GraphClient(args.graph_executable), historical_store=historical_store).review(args.repo, base=args.base, head=args.head)
     if args.json:
         print(json.dumps(result.to_dict(), indent=2, default=str))
     else:
@@ -33,6 +38,7 @@ def _render(result) -> None:
     print(f"Baseline: {result.baseline} -> {result.target} ({result.status})")
     if result.risk:
         print(f"Risk: {result.risk.level} - {result.risk.score}/100")
+        print(f"Historical: {result.risk.historical_status} ({result.risk.historical_component}/30)")
     print(f"Changed symbols: {len(result.changes)}; impact findings: {len(result.impact)}")
     for item in result.recommendations:
         print(f"{item.priority}. {item.action}")

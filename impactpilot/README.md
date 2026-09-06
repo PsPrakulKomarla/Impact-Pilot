@@ -95,3 +95,30 @@ value, reason, and Entire Graph source.
   to “no impact.”
 
 Risk levels are LOW 0–29, MEDIUM 30–59, HIGH 60–79, and CRITICAL 80–100.
+
+## Phase 5 historical intelligence / Databricks
+
+Databricks is an optional historical enhancement, never a dependency of the
+Graph review. Its narrow Delta tables are `change_events`, `test_events`, and
+`impact_snapshots`; each record includes repository/commit provenance, capture
+time, source, and an explicit `REAL`, `SYNTHETIC`, or `REPRESENTATIVE` label.
+
+Configure the production adapter only through environment variables (never
+commit them): `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, and
+`DATABRICKS_WAREHOUSE_ID`. Then opt in:
+
+```text
+python -m impactpilot review --repo . --base <ref> --head <ref> --databricks
+```
+
+If configuration, authentication, or SQL is unavailable, the core review
+continues and reports historical intelligence as unavailable. The local
+`InMemoryHistoricalStore` exists solely for deterministic tests and fixtures;
+it never claims to be Databricks or real historical data.
+
+Historical scoring is a documented **ImpactPilot policy**: 0 for no data or a
+single event; for two or more related change events, recurrence contributes up
+to 10 points, recurring impact snapshots up to 8, and associated historical
+test failures up to 12 (total capped at 30). Every factor includes its sample
+size. A historical heuristic snapshot stays heuristic—it never confirms a
+current relationship or predicts a failure.

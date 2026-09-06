@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from impactpilot.graph.client import GraphClient, GraphClientError
+from impactpilot.history.models import HistoricalEvidence
+from impactpilot.history.store import HistoricalStore
 from impactpilot.recommendations.engine import Recommendation, VerificationPlan, recommend
 from impactpilot.risk.engine import RiskResult, score_review
 
@@ -24,6 +26,7 @@ class ChangeReview:
     risk: RiskResult | None
     recommendations: tuple[Recommendation, ...]
     verification: VerificationPlan | None
+    historical: HistoricalEvidence | None
     warnings: tuple[str, ...]
 
     def to_dict(self) -> dict[str, Any]:
@@ -34,6 +37,7 @@ class ChangeReview:
             "risk": self.risk.to_dict() if self.risk else None,
             "recommendations": [asdict(item) for item in self.recommendations],
             "verification": self.verification.to_dict() if self.verification else None,
+            "historical": self.historical.to_dict() if self.historical else None,
             "warnings": list(self.warnings),
         }
 
@@ -41,18 +45,18 @@ class ChangeReview:
 class ReviewService:
     """Uses one commit/ref semantic diff; it never claims worktree-vs-HEAD diff support."""
 
-    def __init__(self, client: GraphClient, *, max_symbols: int = 20) -> None:
-        self.client, self.max_symbols = client, max_symbols
+    def __init__(self, client: GraphClient, *, historical_store: HistoricalStore | None = None, max_symbols: int = 20) -> None:
+        self.client, self.historical_store, self.max_symbols = client, historical_store, max_symbols
 
     def review(self, repository: Path, *, base: str, head: str) -> ChangeReview:
         try:
             diff = self.client.run_json("diff", repository, "--base", base, "--head", head, "--json")
         except GraphClientError as exc:
-            return ChangeReview(base, head, "failed", (), (), None, (), None, (str(exc),))
+            return ChangeReview(base, head, "failed", (), (), None, (), None, None, (str(exc),))
         changes = normalize_diff(diff)
         warnings = tuple(_warning(item) for item in diff.get("warnings", ()) if isinstance(item, Mapping))
         if not changes:
-            return ChangeReview(base, head, "no_semantic_changes", (), (), score_review((), ()), (), recommend(())[1], warnings)
+            return ChangeReview(base, head, "no_semantic_changes", (), (), score_review((), ()), (), recommend(())[1], None, warnings)
         selected = changes[: self.max_symbols]
         if len(changes) > len(selected):
             warnings += (f"Review limited to {self.max_symbols} changed symbols; remaining symbols require verification.",)
@@ -67,9 +71,18 @@ class ReviewService:
                 findings.extend(analyze_impact(change, impact, neighbors))
             except GraphClientError as exc:
                 warnings += (f"Impact unavailable for {change.symbol}: {exc}",)
-        risk = score_review(selected, findings)
-        recommendations, verification = recommend(findings)
-        return ChangeReview(base, head, "complete", selected, tuple(findings), risk, recommendations, verification, warnings + risk.warnings)
+        historical = self._history(repository, selected)
+        risk = score_review(selected, findings, historical)
+        recommendations, verification = recommend(findings, historical)
+        return ChangeReview(base, head, "complete", selected, tuple(findings), risk, recommendations, verification, historical, warnings + risk.warnings)
+
+    def _history(self, repository: Path, changes: tuple[ChangedSymbol, ...]) -> HistoricalEvidence | None:
+        if not self.historical_store:
+            return None
+        try:
+            return self.historical_store.lookup(str(repository), (item.symbol for item in changes), (item.file for item in changes))
+        except Exception as exc:
+            return HistoricalEvidence(False, "historical_store", None, 0, limitations=(f"Historical intelligence unavailable: {exc}",))
 
 
 def _warning(item: Mapping[str, Any]) -> str:
