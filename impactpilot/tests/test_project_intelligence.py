@@ -47,6 +47,9 @@ class ProjectIntelligenceTests(unittest.TestCase):
         html = render_html(project)
         self.assertIn("Relationship evidence", html)
         self.assertIn("AI Context", html)
+        self.assertIn("How to read this map", html)
+        self.assertIn("marker-end", html)
+        self.assertIn("Focus selected", html)
 
 
 class GraphClientNdjsonTests(unittest.TestCase):
