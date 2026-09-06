@@ -81,6 +81,12 @@ class ChangeReviewTests(unittest.TestCase):
         self.assertEqual(result.risk.level, "LOW")
         self.assertEqual(result.impact, ())
 
+    def test_null_empty_impact_section_does_not_crash_real_review(self):
+        payload = impact()
+        payload["data_flows"]["entries"] = None
+        result = self.review(diff(change()), payload, neighbor())
+        self.assertEqual(result.status, "complete")
+
     def test_heuristic_relation_propagates_to_risk_and_verification(self):
         item = {"endpoint": {"name": "POST /login"}, "relation": "HANDLES_ROUTE", "depth": 1}
         result = self.review(diff(change()), impact(item), neighbor("POST /login", "HANDLES_ROUTE"))

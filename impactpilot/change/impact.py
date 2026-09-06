@@ -39,7 +39,9 @@ def analyze_impact(
         section = impact_payload.get(section_name)
         if not isinstance(section, Mapping):
             continue
-        for entry in section.get("entries", ()):
+        # Provider sections may explicitly use null for an empty entry list.
+        # Treat that as no findings instead of crashing a real change review.
+        for entry in section.get("entries") or ():
             if not isinstance(entry, Mapping):
                 continue
             endpoint = entry.get("endpoint")
