@@ -30,9 +30,9 @@ def main() -> int:
 
 def _render(result) -> None:
     print("IMPACTPILOT CHANGE REVIEW")
-    print(f"Baseline: {result.baseline} → {result.target} ({result.status})")
+    print(f"Baseline: {result.baseline} -> {result.target} ({result.status})")
     if result.risk:
-        print(f"Risk: {result.risk.level} — {result.risk.score}/100")
+        print(f"Risk: {result.risk.level} - {result.risk.score}/100")
     print(f"Changed symbols: {len(result.changes)}; impact findings: {len(result.impact)}")
     for item in result.recommendations:
         print(f"{item.priority}. {item.action}")

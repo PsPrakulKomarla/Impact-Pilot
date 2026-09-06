@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 from impactpilot.change.review import ReviewService
+from impactpilot.__main__ import _render
 from impactpilot.graph.client import GraphClientError
 
 
@@ -103,3 +106,11 @@ class ChangeReviewTests(unittest.TestCase):
         result = ReviewService(FakeGraph(GraphClientError("Graph CLI missing"))).review(Path("."), base="base", head="head")
         self.assertEqual(result.status, "failed")
         self.assertIsNone(result.risk)
+
+    def test_human_output_is_windows_console_safe(self):
+        result = self.review(diff())
+        output = StringIO()
+        with redirect_stdout(output):
+            _render(result)
+        self.assertIn("Baseline: base -> head", output.getvalue())
+        self.assertIn("Risk: LOW - 0/100", output.getvalue())

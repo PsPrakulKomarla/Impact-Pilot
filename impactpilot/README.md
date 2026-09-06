@@ -56,3 +56,42 @@ The contract fixture models the provider's explicit partial coverage signals.
 On Windows without `sh`, graph verification is unavailable. The fallback is to
 run the targeted test directly and inspect the cited source; that state is
 returned explicitly, never as success.
+
+## Phase 4 change review
+
+Run a review over two **committed refs** (not an implied worktree comparison):
+
+```text
+python -m impactpilot review --repo . --base <commit-or-ref> --head <commit-or-ref> --graph-executable entire-graph
+```
+
+The workflow calls `diff --json`, then bounded `impact` and `neighbors`
+queries for up to 20 non-deleted changed symbols. `impact` determines direct
+and transitive shape; `neighbors` provides the relationship confidence,
+resolution, reason, and source evidence required by the Trust Layer. Deleted
+symbols are not queried as though they still exist; the review requests manual
+inspection of their prior callers.
+
+The result is available as human-readable output or `--json`. It includes the
+explicit baseline and target refs, changed symbols, impact findings and raw
+evidence, trust classification, deterministic risk factors, recommendations,
+and a verification plan.
+
+### Deterministic decision-support score
+
+Risk is bounded to 0–100: structural evidence can contribute up to 60 points,
+and verification uncertainty up to 10. The Phase 2 historical allocation is
+intentionally **0 / unavailable** until Phase 5 provides real historical data.
+The score is not predictive: every contribution is exposed with its signal,
+value, reason, and Entire Graph source.
+
+- Signature/body/removal/rename semantic changes contribute documented fixed
+  amounts (18/8/15/12), because they represent distinct change types from the
+  provider—not confidence thresholds.
+- Provider-reported dependent counts, direct impact, and transitive impact add
+  capped structural contributions.
+- Every non-confirmed impact finding adds a verification component and source/
+  graph re-check actions. Unknown or incomplete evidence is never equivalent
+  to “no impact.”
+
+Risk levels are LOW 0–29, MEDIUM 30–59, HIGH 60–79, and CRITICAL 80–100.

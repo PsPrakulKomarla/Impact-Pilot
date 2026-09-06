@@ -83,7 +83,13 @@ def _unresolved_impact_evidence(
             evidence=(Location(call_site.get("file_path"), call_site.get("line")),),
         ),
         analysis_status=analysis_status(payload),
-        warnings=tuple(str(item) for item in payload.get("warnings", ()) if isinstance(item, str)),
+        warnings=tuple(_warning(item) for item in payload.get("warnings", ()) if isinstance(item, (str, Mapping))),
         partial_failures=tuple(item for item in payload.get("partial_failures", ()) if isinstance(item, Mapping)),
         raw=entry,
     )
+
+
+def _warning(item: str | Mapping[str, Any]) -> str:
+    if isinstance(item, Mapping):
+        return str(item.get("code") or item.get("message") or dict(item))
+    return item
