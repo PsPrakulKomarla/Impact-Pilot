@@ -1,0 +1,15 @@
+{
+  "repository": "fixture/heuristic",
+  "stats": {"completeness_level": "ok"},
+  "relations": [
+    {
+      "from": "register_routes",
+      "to": "POST /orders",
+      "type": "HANDLES_ROUTE",
+      "confidence": 0.9,
+      "resolution": "exact",
+      "reason": "route registration",
+      "evidence": [{"file": "routes.py", "line": 12}]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "repository": "fixture/dynamic-dispatch",
+  "stats": {"completeness_level": "degraded"},
+  "warnings": ["E_PARSE_DEPTH_EXCEEDED: handlers.py"],
+  "partial_failures": [
+    {
+      "code": "E_PARSE_DEPTH_EXCEEDED",
+      "path": "handlers.py",
+      "effect_on_semantic_completeness": "file counts against completeness"
+    }
+  ],
+  "relations": [
+    {
+      "from": "dispatch",
+      "to": "Handler.handle",
+      "type": "CALLS",
+      "confidence": 0.68,
+      "resolution": "name_only",
+      "reason": "static target is not fully resolved",
+      "evidence": [{"file": "partial_dynamic_dispatch.py", "line": 20}]
+    }
+  ]
+}

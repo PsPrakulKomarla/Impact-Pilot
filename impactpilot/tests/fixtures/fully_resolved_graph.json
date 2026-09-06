@@ -1,0 +1,16 @@
+{
+  "repository": "fixture/complete",
+  "version": "dev",
+  "stats": {"completeness_level": "ok"},
+  "relations": [
+    {
+      "from": "CheckoutService.place_order",
+      "to": "PaymentService.charge",
+      "type": "CALLS",
+      "confidence": 0.92,
+      "resolution": "exact",
+      "reason": "same-file declaration",
+      "evidence": [{"file": "checkout.py", "line": 18}]
+    }
+  ]
+}
