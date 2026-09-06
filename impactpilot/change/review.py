@@ -65,6 +65,9 @@ class ReviewService:
             if change.deleted:
                 warnings += (f"Removed symbol {change.symbol} cannot be queried with impact; inspect prior callers manually.",)
                 continue
+            if not _supports_impact_query(change):
+                warnings += (f"Impact query skipped for {change.symbol}: provider reported non-code kind {change.kind or 'unknown'}; inspect the changed file manually.",)
+                continue
             try:
                 impact = self.client.run_json("impact", repository, "--symbol", change.symbol, "--file", change.file, "--format", "json")
                 neighbors = self.client.run_json("neighbors", repository, "--symbol", change.symbol, "--file", change.file, "--format", "json")
@@ -87,6 +90,11 @@ class ReviewService:
 
 def _warning(item: Mapping[str, Any]) -> str:
     return str(item.get("code") or item.get("message") or dict(item))
+
+
+def _supports_impact_query(change: ChangedSymbol) -> bool:
+    """Avoid expensive symbol impact queries for document/config inventory records."""
+    return change.kind in {"function", "method", "class", "type", "interface", "enum", "field"}
 
 
 def _finding_dict(finding: ImpactFinding) -> dict[str, Any]:

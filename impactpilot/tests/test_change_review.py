@@ -105,6 +105,11 @@ class ChangeReviewTests(unittest.TestCase):
         self.assertEqual(result.impact, ())
         self.assertTrue(any("Removed symbol" in warning for warning in result.warnings))
 
+    def test_non_code_diff_record_skips_impact_query_with_manual_warning(self):
+        result = self.review(diff(change(name="command", kind="section")))
+        self.assertEqual(result.impact, ())
+        self.assertTrue(any("non-code kind section" in warning for warning in result.warnings))
+
     def test_renamed_symbol_is_handled_and_bounded_large_reviews_are_disclosed(self):
         changes = [change(name=f"f{i}", type="renamed") for i in range(22)]
         result = ReviewService(FakeGraph(diff(*changes)), max_symbols=20).review(Path("."), base="base", head="head")
