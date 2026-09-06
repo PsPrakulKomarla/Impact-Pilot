@@ -2,6 +2,8 @@
 /dist/
 __pycache__/
 *.py[cod]
+.env
+.env.*
 
 # Benchmark working data: cloned external repos must never enter our commits.
 /bench/.cache/

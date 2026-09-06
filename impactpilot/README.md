@@ -146,3 +146,19 @@ view. It deliberately does not claim runtime completeness, token savings, or
 full-repository rendering scalability. Partial Graph results are surfaced as a
 coverage warning and classify relationship evidence as `incomplete`; heuristic
 provider relation families remain visibly heuristic.
+
+## Phase 7 checkpoint context
+
+ImpactPilot can display read-only context from a real Entire checkpoint:
+
+```text
+python -m impactpilot checkpoint --id <checkpoint-id>
+python -m impactpilot checkpoint --json
+```
+
+It invokes `entire checkpoint list --json` and `entire checkpoint explain <id>
+--json`; it never invents checkpoint IDs, intent, test outcomes, or a mapping
+from a checkpoint to a repository ref. Current Entire detail exposes recorded
+message/agent/date, strategy, and session/checkpoint counts. Use the commit's
+`Entire-Checkpoint:` trailer to establish its commit linkage; run the normal
+ImpactPilot review for the semantic-diff/impact/risk workflow.

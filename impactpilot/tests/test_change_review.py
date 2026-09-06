@@ -6,9 +6,11 @@ from io import StringIO
 from pathlib import Path
 
 from impactpilot.change.review import ReviewService
+from impactpilot.change.diff import ChangedSymbol
 from impactpilot.__main__ import _render
 from impactpilot.graph.client import GraphClientError
 from impactpilot.history.models import ChangeEvent, HistoricalEvidence, TestEvent
+from impactpilot.risk.engine import score_review
 
 
 def diff(*changes):
@@ -133,3 +135,13 @@ class ChangeReviewTests(unittest.TestCase):
             _render(result)
         self.assertIn("Baseline: base -> head", output.getvalue())
         self.assertIn("Risk: LOW - 0/100", output.getvalue())
+
+    def test_risk_components_are_bounded_and_sum_to_total(self):
+        changes = tuple(ChangedSymbol(f"s{index}", "function", "service.py", 1, "signature_changed", 99, None, None, {}) for index in range(10))
+        result = score_review(changes, ())
+        self.assertGreaterEqual(result.score, 0)
+        self.assertLessEqual(result.score, 100)
+        self.assertLessEqual(result.structural_component, 60)
+        self.assertLessEqual(result.historical_component, 30)
+        self.assertLessEqual(result.verification_component, 10)
+        self.assertEqual(result.score, result.structural_component + result.historical_component + result.verification_component)

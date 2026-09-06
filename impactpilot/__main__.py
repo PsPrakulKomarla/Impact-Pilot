@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from impactpilot.change.review import ReviewService
+from impactpilot.checkpoint import CheckpointError, EntireCheckpointClient
 from impactpilot.graph.client import GraphClient
 from impactpilot.project import render_html
 from impactpilot.project.service import ProjectService
@@ -28,6 +29,10 @@ def main() -> int:
     project.add_argument("--max-nodes", type=int, default=50)
     project.add_argument("--output", type=Path, help="Write a self-contained interactive HTML map.")
     project.add_argument("--json", action="store_true")
+    checkpoint = command.add_parser("checkpoint", help="Show read-only context from an actual Entire checkpoint.")
+    checkpoint.add_argument("--id", help="Checkpoint ID; defaults to the latest checkpoint on this branch.")
+    checkpoint.add_argument("--entire-executable", default="entire")
+    checkpoint.add_argument("--json", action="store_true")
     args = parser.parse_args()
     if args.command == "project":
         try:
@@ -45,6 +50,22 @@ def main() -> int:
             print(f"Coverage: {result.coverage}; visible modules: {len(result.nodes)}")
             for node in result.nodes:
                 print(f"- {node.label}: {len(node.files)} files, {node.incoming + node.outgoing} inter-module relationships")
+        return 0
+    if args.command == "checkpoint":
+        try:
+            client = EntireCheckpointClient(args.entire_executable)
+            result = client.get(args.id) if args.id else client.latest()
+        except CheckpointError as exc:
+            print(f"Checkpoint context unavailable: {exc}")
+            return 2
+        if args.json:
+            print(json.dumps(result.to_dict(), indent=2))
+        else:
+            print("IMPACTPILOT CHECKPOINT CONTEXT")
+            print(f"ID: {result.checkpoint_id}; state: {result.message or 'not recorded'}")
+            print(f"Agent: {result.agent or 'not recorded'}; strategy: {result.strategy or 'not recorded'}")
+            print(f"Sessions: {result.session_count if result.session_count is not None else 'not recorded'}; recorded checkpoints: {result.checkpoint_count if result.checkpoint_count is not None else 'not recorded'}")
+            for limitation in result.limitations: print(f"Limitation: {limitation}")
         return 0
     historical_store = None
     if args.databricks:
